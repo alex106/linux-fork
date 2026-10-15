@@ -1,0 +1,32 @@
+services:
+  fork:
+    build: .
+    image: fork-gui
+    container_name: fork
+    init: true
+    stdin_open: true
+    tty: true
+    shm_size: "2gb"
+    ipc: host
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      HOST_HOME: ${HOST_HOME:-${HOME}}
+      HOST_UID: ${HOST_UID:-1000}
+      HOST_GID: ${HOST_GID:-1000}
+      WINEPREFIX: /data/prefix
+      WINEDEBUG: ${WINEDEBUG:-err+all,fixme-all}
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      WINE_MITSHM: "0"
+    volumes:
+      - fork-data:/data
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      # Same path inside the container so Fork's Z: drive matches your real paths.
+      - ${HOST_HOME:-${HOME}}:${HOST_HOME:-${HOME}}
+      # gh stores the GitHub token in the desktop keyring.
+      - /run/user/${HOST_UID:-1000}:/run/user/${HOST_UID:-1000}:ro
+    # Wine needs a larger syscall set than the default Docker profile.
+    security_opt:
+      - seccomp:unconfined
+
+volumes:
+  fork-data:
