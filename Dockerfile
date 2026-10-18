@@ -94,13 +94,15 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 COPY scripts/install-fork.sh scripts/patch_fork.py scripts/entrypoint.sh \
      scripts/open-linux-terminal.sh scripts/fork-linux-terminal.cmd \
      scripts/fork-linux-terminal.c scripts/git-credential-linux.c \
-     scripts/git-credential-host.sh /opt/fork/
+     scripts/git-credential-host.sh scripts/install-desktop-shortcut.sh \
+     scripts/extract-fork-icon.py /opt/fork/
 RUN x86_64-w64-mingw32-gcc -O2 -mwindows -o /opt/fork/fork-linux-terminal.exe \
         /opt/fork/fork-linux-terminal.c \
     && x86_64-w64-mingw32-gcc -O2 -o /opt/fork/git-credential-linux.exe \
         /opt/fork/git-credential-linux.c \
     && chmod 755 /opt/fork/install-fork.sh /opt/fork/entrypoint.sh /opt/fork/patch_fork.py \
         /opt/fork/open-linux-terminal.sh /opt/fork/git-credential-host.sh \
+        /opt/fork/install-desktop-shortcut.sh /opt/fork/extract-fork-icon.py \
     && chmod 644 /opt/fork/fork-linux-terminal.cmd \
     && chown -R fork:fork /opt/fork
 

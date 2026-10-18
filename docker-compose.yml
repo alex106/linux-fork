@@ -11,6 +11,7 @@ services:
     environment:
       DISPLAY: ${DISPLAY:-:0}
       HOST_HOME: ${HOST_HOME:-${HOME}}
+      FORK_REPO: ${FORK_REPO:-}
       HOST_UID: ${HOST_UID:-1000}
       HOST_GID: ${HOST_GID:-1000}
       WINEPREFIX: /data/prefix

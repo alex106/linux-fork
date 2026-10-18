@@ -202,6 +202,11 @@ if [[ -d "${GIT_ROOT}" ]]; then
   cp -f /opt/fork/fork-linux-terminal.exe "${GIT_ROOT}/git-bash.exe"
 fi
 
+if [[ -n "${FORK_REPO:-}" && -x /opt/fork/install-desktop-shortcut.sh ]]; then
+  FORK_EXE="${FORK_EXE}" /opt/fork/install-desktop-shortcut.sh \
+    || echo "Desktop shortcut was not installed." >&2
+fi
+
 # MIT-SHM cannot share pixels from a Docker IPC namespace to the host X server.
 wine reg add 'HKCU\Software\Wine\X11 Driver' /v UseXShm /t REG_SZ /d N /f >/dev/null
 wine reg add 'HKCU\SOFTWARE\Microsoft\Avalon.Graphics' /v DisableHWAcceleration /t REG_DWORD /d 1 /f >/dev/null

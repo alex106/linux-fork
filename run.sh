@@ -7,6 +7,7 @@ export DISPLAY="${DISPLAY:-:0}"
 export HOST_UID="$(id -u)"
 export HOST_GID="$(id -g)"
 export HOST_HOME="${HOST_HOME:-$HOME}"
+export FORK_REPO="$(pwd)"
 
 # Fork has to open a window on this machine. Docker Desktop runs containers
 # inside a VM, and that VM cannot use the host X11 socket. The host engine can.
@@ -19,5 +20,9 @@ if [[ ! -S "/tmp/.X11-unix/X${DISPLAY#:}" ]]; then
   echo "This session needs XWayland (or Xorg). On a Wayland-only session, log in with XWayland enabled." >&2
   exit 1
 fi
+
+# The launcher is written here, before Fork starts. The real icon is filled in
+# once Fork.exe exists inside the container.
+"${FORK_REPO}/scripts/install-desktop-shortcut.sh"
 
 exec docker compose up --build --abort-on-container-exit --remove-orphans
