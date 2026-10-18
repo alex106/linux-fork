@@ -35,13 +35,14 @@ if [[ -n "${icon_source}" && -f "${icon_source}" ]]; then
   python3 "${script_dir}/extract-fork-icon.py" "${icon_source}" "${icon}"
 fi
 
+chmod +x "${FORK_REPO}/scripts/desktop-launch.sh"
 cat > "${desktop}/Fork.desktop" << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Fork
 Comment=Open the Fork Git client
-Exec=${FORK_REPO}/run.sh
+Exec=${FORK_REPO}/scripts/desktop-launch.sh
 Path=${FORK_REPO}
 Icon=${icon}
 Terminal=false
