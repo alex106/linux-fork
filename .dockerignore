@@ -2,3 +2,4 @@
 *.md
 run.sh
 docker-compose.yml
+.watchtest

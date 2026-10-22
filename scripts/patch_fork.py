@@ -151,6 +151,62 @@ def patch_call_base_ctor(data, fo, ctor_token):
     return True
 
 
+def patch_keep_commit_list_position(data, fo):
+    """Leave the commit list where the user scrolled it.
+
+    Resizing the history view swaps its column template. Under Wine a scroll
+    reports a size change, the template is replaced, and the list returns to
+    the top. The template is chosen when the view is created and when the
+    orientation changes, so the resize handler only needs to keep column widths.
+    """
+    co, cs, fat, _hs = read_method_header(data, fo)
+    if co is None or fat or cs < 6:
+        return False
+    # ldarg.0; call RefreshRevisionListViewTemplate
+    if data[co] != 0x02 or data[co + 1] != 0x28:
+        return False
+    for i in range(6):
+        data[co + i] = 0x00
+    return True
+
+
+def patch_reload_local_changes(data, fo, dirty_token, refresh_token):
+    """Make the status timer reload Local Changes.
+
+    Fork's automatic refresh only runs `git status` to learn whether the
+    repo is dirty, then updates a badge. A save does not change that badge
+    once the repo is already dirty, and a newly edited file never enters
+    the Local Changes list. The callback already has the repository control
+    on the stack. Reload status the way Commit view does: SubDomain.Status,
+    no revision to select, and the commit view.
+    """
+    co, cs, fat, _hs = read_method_header(data, fo)
+    if co is None or not fat or dirty_token is None or refresh_token is None:
+        return False
+    body = data[co : co + cs]
+    marker = bytes([0x2D, 0x02, 0x26, 0x2A])
+    call = b"\x28" + struct.pack("<I", dirty_token)
+    marker_at = body.find(marker)
+    call_at = body.find(call)
+    if marker_at < 0 or call_at < 0 or call_at < marker_at:
+        return False
+    start = marker_at + len(marker)
+    end = call_at + len(call) + 1
+    if end > cs or body[call_at + len(call)] != 0x2A:
+        return False
+    # ldc.i4 SubDomain.Status (0x70000), ldnull, ldc.i4.1 CommitViewMode,
+    # callvirt InvalidateAndRefresh, ret. The method must end on that ret.
+    # Bytes after a ret are still checked, and a trailing nop is rejected
+    # as falling off the end of the method.
+    replacement = b"\x20" + struct.pack("<i", 0x70000)
+    replacement += b"\x14\x17\x6f" + struct.pack("<I", refresh_token) + b"\x2a"
+    if start + len(replacement) > end:
+        return False
+    data[co + start : co + start + len(replacement)] = replacement
+    struct.pack_into("<I", data, fo + 4, start + len(replacement))
+    return True
+
+
 def patch_return_size(data, fo, size_token, width=50.0):
     """Replace method body with: return new Size(width, 0.0)."""
     co, cs, fat, _hs = read_method_header(data, fo)
@@ -205,6 +261,10 @@ def main():
     notify_methods = []
     mainwindow_apply = None
     menu_manager_ctor_token = None
+    reload_local_changes = None
+    revision_list_resize = None
+    update_is_dirty_token = None
+    invalidate_and_refresh_token = None
     for trow in dn.net.mdtables.TypeDef:
         tname = str(trow.TypeName)
         if tname == "DiffLineNumberMargin":
@@ -239,6 +299,25 @@ def main():
                 mrow = idx_obj.row
                 if str(mrow.Name) == "OnApplyTemplate" and mrow.Rva > 0:
                     mainwindow_apply = mrow.Rva
+        elif tname == "RevisionListViewUserControl":
+            for idx_obj in trow.MethodList:
+                mrow = idx_obj.row
+                if str(mrow.Name) == "RevisionListView_SizeChanged" and mrow.Rva > 0:
+                    revision_list_resize = mrow.Rva
+        elif tname == "<>c__DisplayClass6_2":
+            for idx_obj in trow.MethodList:
+                mrow = idx_obj.row
+                if str(mrow.Name) == "<RefreshInternal>b__1" and mrow.Rva > 0:
+                    reload_local_changes = mrow.Rva
+        elif tname == "RepositoryUserControl":
+            for idx_obj in trow.MethodList:
+                mrow = idx_obj.row
+                mname = str(mrow.Name)
+                token = (0x06 << 24) | idx_obj.row_index
+                if mname == "UpdateIsDirtyState" and mrow.Rva > 0:
+                    update_is_dirty_token = token
+                elif mname == "InvalidateAndRefresh" and mrow.Rva > 0:
+                    invalidate_and_refresh_token = token
         elif tname == "MainWindowMenuManager":
             for idx_obj in trow.MethodList:
                 mrow = idx_obj.row
@@ -359,6 +438,35 @@ def main():
                 count += 1
     elif mainwindow_apply:
         print("  SKIP: MainWindowMenuManager..ctor token not found")
+
+    if reload_local_changes and update_is_dirty_token and invalidate_and_refresh_token:
+        fo = rva_to_offset(sections, reload_local_changes)
+        ok = fo is not None and patch_reload_local_changes(
+            data, fo, update_is_dirty_token, invalidate_and_refresh_token
+        )
+        print(f"  {'OK' if ok else 'FAIL'}: automatic status refresh reloads Local Changes")
+        if not ok:
+            print(
+                "ERROR: Local Changes refresh patch failed",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        count += 1
+    else:
+        print("ERROR: automatic status refresh method not found", file=sys.stderr)
+        sys.exit(1)
+
+    if revision_list_resize:
+        fo = rva_to_offset(sections, revision_list_resize)
+        ok = fo is not None and patch_keep_commit_list_position(data, fo)
+        print(f"  {'OK' if ok else 'FAIL'}: commit list keeps its scroll position")
+        if not ok:
+            print("ERROR: commit list scroll patch failed", file=sys.stderr)
+            sys.exit(1)
+        count += 1
+    else:
+        print("ERROR: commit list resize handler not found", file=sys.stderr)
+        sys.exit(1)
 
     for mname, rva in notify_methods:
         fo = rva_to_offset(sections, rva)

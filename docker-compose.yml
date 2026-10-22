@@ -23,11 +23,18 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       # Same path inside the container so Fork's Z: drive matches your real paths.
       - ${HOST_HOME:-${HOME}}:${HOST_HOME:-${HOME}}
+      # The status-refresh patch lives in this file. Mount it so a restart
+      # picks up the script without rebuilding the image.
+      - ./scripts/patch_fork.py:/opt/fork/patch_fork.py:ro
+      - ./scripts/entrypoint.sh:/opt/fork/entrypoint.sh:ro
+      - ./scripts/open-host-browser.sh:/opt/fork/open-host-browser.sh:ro
       # gh stores the GitHub token in the desktop keyring.
       - /run/user/${HOST_UID:-1000}:/run/user/${HOST_UID:-1000}:ro
     # Wine needs a larger syscall set than the default Docker profile.
+    # AppArmor blocks the container from asking the desktop to open a URL.
     security_opt:
       - seccomp:unconfined
+      - apparmor:unconfined
 
 volumes:
   fork-data:

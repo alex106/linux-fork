@@ -38,6 +38,13 @@ if [[ "$(id -u)" -eq 0 ]]; then
   if [[ ! -f "${WINEPREFIX}/.fork-version" ]]; then
     chown -R fork:fork /data /home/fork
   fi
+  # Fork's "Create Pull Request" asks winebrowser to open a URL. winebrowser
+  # runs xdg-open, which this image does not ship. Point that name at the
+  # host desktop instead.
+  if [[ -f /opt/fork/open-host-browser.sh ]]; then
+    cp -f /opt/fork/open-host-browser.sh /usr/local/bin/xdg-open
+    chmod 755 /usr/local/bin/xdg-open
+  fi
   if [[ -d /opt/wine-staging/share/wine/winmd && ! -d /opt/wine-staging/share/wine/winmd.disabled ]]; then
     mv /opt/wine-staging/share/wine/winmd /opt/wine-staging/share/wine/winmd.disabled
   fi

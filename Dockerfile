@@ -91,11 +91,28 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+# Wine reports directory changes only for the folder it was asked to watch.
+# Fork then misses edits inside existing subfolders. The hook loads a helper
+# into wineserver that forwards those nested edits. This layer stays cached
+# when only the Fork patch script changes.
+COPY scripts/libfork-dirwatch.c scripts/wineserver-hook.sh /opt/fork/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && gcc -shared -fPIC -O2 -o /opt/fork/libfork-dirwatch.so \
+        /opt/fork/libfork-dirwatch.c -ldl \
+    && mv /opt/wine-staging/bin/wineserver /opt/wine-staging/bin/wineserver.real \
+    && cp /opt/fork/wineserver-hook.sh /opt/wine-staging/bin/wineserver \
+    && chmod 755 /opt/wine-staging/bin/wineserver /opt/fork/libfork-dirwatch.so \
+        /opt/fork/wineserver-hook.sh \
+    && apt-get purge -y gcc libc6-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY scripts/install-fork.sh scripts/patch_fork.py scripts/entrypoint.sh \
      scripts/open-linux-terminal.sh scripts/fork-linux-terminal.cmd \
      scripts/fork-linux-terminal.c scripts/git-credential-linux.c \
      scripts/git-credential-host.sh scripts/install-desktop-shortcut.sh \
-     scripts/extract-fork-icon.py /opt/fork/
+     scripts/extract-fork-icon.py scripts/open-host-browser.sh /opt/fork/
 RUN x86_64-w64-mingw32-gcc -O2 -mwindows -o /opt/fork/fork-linux-terminal.exe \
         /opt/fork/fork-linux-terminal.c \
     && x86_64-w64-mingw32-gcc -O2 -o /opt/fork/git-credential-linux.exe \
@@ -103,6 +120,7 @@ RUN x86_64-w64-mingw32-gcc -O2 -mwindows -o /opt/fork/fork-linux-terminal.exe \
     && chmod 755 /opt/fork/install-fork.sh /opt/fork/entrypoint.sh /opt/fork/patch_fork.py \
         /opt/fork/open-linux-terminal.sh /opt/fork/git-credential-host.sh \
         /opt/fork/install-desktop-shortcut.sh /opt/fork/extract-fork-icon.py \
+        /opt/fork/open-host-browser.sh \
     && chmod 644 /opt/fork/fork-linux-terminal.cmd \
     && chown -R fork:fork /opt/fork
 
